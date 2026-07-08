@@ -1,0 +1,24 @@
+name: "saber_football"
+version: "0.1.0"
+config-version: 2
+
+profile: "saber_football"
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+models:
+  saber_football:
+    staging:
+      +schema: staging
+    core:
+      +schema: core
+    analytics:
+      +schema: analytics
+    features:
+      +schema: features
+    models:
+      +schema: models
+    finance:
+      +schema: finance

@@ -1,0 +1,25 @@
+.venv/
+.env
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.uv-cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Local/raw data is intentionally not versioned. Store source snapshots in
+# object storage or local data/ during development, with NOTICE files beside them.
+data/*
+!data/.gitkeep
+
+dbt/target/
+dbt/logs/
+dbt/.user.yml
+
+notebooks/.ipynb_checkpoints/
