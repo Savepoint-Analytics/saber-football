@@ -2,7 +2,7 @@
 
 > **Vertical:** Sports → American Football (NFL primary, NCAA second)
 > **Inherits:** `../../COMPANY_CONTEXT.md` → `../CLAUDE.md` → `COMPANY_CONTEXT.md`
-> **Last updated:** 2026-07-08
+> **Last updated:** 2026-11-20
 
 ---
 
@@ -89,20 +89,20 @@ Build the data foundation once; layer (1) → (7) on top of it. Full detail in
 
 ## 6. Current phase
 
-**Phase 0 → Phase 1 bootstrap.** The agent-context/documentation set is in place
-(`PROJECT_CONTEXT.md`, `CLAUDE.md`, `AGENTS.md`, `COMPANY_CONTEXT.md`, `registry.md`,
-`public-data-sources.md`, and the `docs/` domain suite), and the initial installable
-repo skeleton exists (`src/`, `dbt/`, `tests/`, `.env.example`, `pyproject.toml`,
-`Makefile`, `docker-compose.yml`, `uv.lock`). The first NFL raw snapshots for 2025
-have been written under `data/bronze/nflverse_schedules/...` and
-`data/bronze/nflverse_pbp/...` with attribution and extract metadata. The first core
-tables (`dim_game`, `fact_play`, `fact_team_game`) are built for 2025 under `data/core/`
-and validated with Pandera. The first `team_style_season` analytics mart and Streamlit
-dashboard are in place. EPA/WPA reconciliation now writes
-`data/quality/epa_wpa_reconciliation/...`; core analysis-play EPA/WPA aggregates reconcile
-to raw nflverse with zero practical drift, while the public cumulative all-row nflverse
-definition is tracked separately. Next phase = add richer dashboard filters/exports and
-pull player/roster/participation/snap-count raw data when network approval is available.
+**Phase 1 — NFL single-season prototype.** The local 2025 build covers 285 games, 37,220
+analysis plays, and 32 teams. Pandera validates `dim_game`, `fact_play`, and `fact_team_game`.
+Core EPA/WPA aggregates reconcile with the raw nflverse analysis plays to floating-point
+precision. The quality report also records the public cumulative all-row EPA definition.
+The descriptive Streamlit team-style dashboard supports team and minimum-games filters,
+sorting, and attributed CSV exports.
+
+Teams, players, rosters, participation, and snap counts have local snapshots. The identity
+build produces `dim_team`, `dim_player`, `bridge_player_ids`, `fact_player_game`, and
+`fact_player_on_play`, a participation proxy. Both player-context facts cover all 285 games.
+The snap-count fact has 56 rows across eight PFR IDs without a matching dimension player.
+Rosters are available for enrichment. The local Python/Parquet path runs the warehouse.
+MinIO is a raw write option, and dbt and orchestration are scaffolded. Opponent-adjusted
+efficiency, player value, prediction, NCAA ingestion, and simulation remain on the roadmap.
 
 ## 7. Domain context
 
@@ -146,9 +146,9 @@ Full catalog with ToS/attribution in `public-data-sources.md`; access detail in
 
 | Dataset | Source | Access | League | Status | Notes |
 |---|---|---|---|---|---|
-| Play-by-play + schedules | nflverse / nflfastR | R/Python loaders over release files | NFL | Planned | Central fact table; 1999+; snapshot versions. |
-| Rosters / players / IDs | nflreadr / nfl_data_py | Loaders | NFL | Planned | Needs ID bridge (GSIS/PFR/ESPN). |
-| Participation + snap counts | nflreadr | Loaders | NFL | Planned | 2016+; unlocks on/off, adjusted +/−. |
+| Play-by-play + schedules | nflverse / nflfastR | `nflreadpy` loaders over release files | NFL | Local 2025 build | Central fact tables; archive exact input versions. |
+| Rosters / players / IDs | nflverse | `nflreadpy` loaders | NFL | Snapshotted | Initial player dimension and ID bridge use the players feed. |
+| Participation + snap counts | nflverse (FTN/NGS participation, PFR snap counts) | `nflreadpy` loaders | NFL | Local 2025 build | On-field and snap context; check provider and season coverage before backfills. |
 | NGS aggregates | nflreadr::load_nextgen_stats | Loaders | NFL | Planned | Aggregates only; raw tracking not public. |
 | Injuries / depth charts | nflreadr | Loaders | NFL | Planned | Status/games-missed proxies only. |
 | Contracts / cap | OverTheCap via load_contracts; NFLPA; Spotrac | Loaders / web | NFL | Planned | Snapshot by date; cap≠cash≠guarantees≠dead money. |
@@ -214,14 +214,14 @@ football-sabermetrics/
 - Betting markets include margin/timing — store line source + timestamp; never treat as truth.
 
 ## 14. Current priorities (next, small and concrete)
-1. Pull the next NFL raw sources now wired in `src.ingestion.nflverse`: teams, players,
-   rosters, participation, and snap counts.
-2. Expand the team efficiency/style dashboard with filters, exports, and clearer tempo /
-   fourth-down placeholders.
-3. Build `dim_team`, initial `dim_player`, and ID bridge tables from teams/players/rosters.
-4. Keep test/lint gates green as ingestion expands (`pytest`, `ruff`).
-5. Expand `src/compliance/attributions.py` stamping from raw/core/analytics/quality snapshots
-   into exported reports.
+1. Add player-context schema and coverage checks for ID bridge coverage, snap-count joins,
+   duplicate keys, and participation completeness by team and game. Review the unmatched PFR IDs.
+2. Pin raw snapshot versions in build metadata and rehearse a rebuild with one additional
+   completed season. Decide how transforms will read retained MinIO snapshots.
+3. Build a descriptive player opportunity mart and dashboard with snap shares, on-field play
+   counts, and role groups. Publish coverage and source attribution alongside the metrics.
+4. Add opponent-adjusted team efficiency and weekly trends before expanding into player value
+   and game prediction.
 
 ## 15. Cross-vertical connections
 
@@ -245,5 +245,5 @@ football-sabermetrics/
 - Build/run + layout: `README.md`
 
 ## 17. Next review date
-Review after: the NFL `raw` + `fact_play` foundation is reproducible; a first team
-dashboard ships; the storage-engine decision (§12.2) is settled; or scope changes.
+Review after the player-context checks and second completed-season rebuild, or when the
+storage decision (§12.2) is settled.

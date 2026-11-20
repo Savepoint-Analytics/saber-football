@@ -8,14 +8,13 @@ simulate counterfactual coaching with an **AI Coach**. Built as a sub-vertical o
 [Savepoint Analytics](../../COMPANY_CONTEXT.md), extending the
 [baseball flagship](../baseball/README.md) into the NFL and college football.
 
-Last updated: 2026-07-08
+Last updated: 2026-11-20
 
-> **Status:** Phase 0 → Phase 1 bootstrap. The agent-context and documentation set are in
-> place, and the initial `src/`, `dbt/`, `data/`, test, and pipeline skeleton now exists.
-> The first 2025 nflverse schedules and play-by-play raw snapshots have been written
-> locally with attribution and extract metadata. The first `dim_game`, `fact_play`,
-> `fact_team_game`, and `team_style_season` tables are built, and the Streamlit
-> dashboard renders real team efficiency/style metrics. See `PROJECT_CONTEXT.md` §14.
+> **Status** — Phase 1 NFL prototype. The local 2025 build covers 285 games and 32 teams.
+> The play-by-play warehouse produces a descriptive team-style mart and Streamlit dashboard,
+> and the player-context build produces team and player dimensions, an ID bridge, snap counts,
+> and on-field participation. Player-context validation and opponent-adjusted efficiency
+> remain Phase 1 priorities. See `PROJECT_CONTEXT.md` §14.
 
 > **New here? Read in this order:** `../../COMPANY_CONTEXT.md` → `../CLAUDE.md`
 > (sports brief) → `COMPANY_CONTEXT.md` → `PROJECT_CONTEXT.md` → `CLAUDE.md`
@@ -147,12 +146,11 @@ football-sabermetrics/
 
 ```bash
 # 1. Environment
-uv sync && source .venv/bin/activate
+uv sync --locked --extra dev --extra serving
 cp .env.example .env            # add CFBD_API_KEY + warehouse credentials
-Rscript -e 'renv::restore()'    # only for nflreadr / cfbfastR tasks
 
 # 2. Local infra (optional early)
-docker compose up -d            # postgres, minio, orchestrator
+docker compose up -d            # Postgres and MinIO
 
 # 3. First NFL pull (nflverse play-by-play + schedules → immutable Parquet)
 make ingest LEAGUE=nfl SEASON=2025
@@ -161,16 +159,25 @@ make ingest LEAGUE=nfl SEASON=2025
 make core SEASON=2025
 make analytics SEASON=2025
 make reconcile SEASON=2025
-pytest -q
+make test
 
 # 5. Explore
-streamlit run src/serving/app.py
+make serve
+
+# 6. Build the initial player-context tables for a completed season
+make ingest-teams ingest-players ingest-rosters ingest-participation ingest-snap-counts SEASON=2025
+make identity SEASON=2025
 ```
+
+The commands above use local Parquet. To send future raw extracts and their sidecars to an
+existing MinIO bucket, set `SABER_STORAGE_BACKEND=minio` and configure the endpoint, credentials,
+bucket, and optional `MINIO_PREFIX`. Core, identity, and reconciliation currently require local
+copies of the raw snapshots under `data/bronze/`.
 
 ## Roadmap (condensed — full version in `docs/09-modeling-roadmap.md`)
 
-1. **Phase 0 — Foundations (current):** context + docs, warehouse design, repo skeleton.
-2. **Phase 1 — NFL warehouse + descriptive team analytics:** nflverse PBP → EPA/WPA/
+1. **Phase 0 — Foundations:** context + docs, warehouse design, repo skeleton.
+2. **Phase 1 — NFL warehouse + descriptive team analytics (current):** nflverse PBP → EPA/WPA/
    success/explosive → opponent-adjusted efficiency & style dashboards.
 3. **Phase 2 — Player performance models:** QB, skill-position, special teams,
    participation-based on/off, opportunity.
