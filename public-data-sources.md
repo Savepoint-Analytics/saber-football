@@ -35,6 +35,13 @@ commercial/public posture:
   dataset. Pin package versions.
 - **Attribution:** "Data via nflverse (nflfastR/nflreadr)."
 
+### NFL participation (via nflverse)
+- **Provides:** player-on-field lists and play-level personnel context. The 2023 and later
+  releases are available after the postseason.
+- **License and attribution:** CC BY-SA 4.0. Credit FTN Data via nflverse from 2023 onward
+  and NFL Next Gen Stats via nflverse through 2022. Apply the license terms when sharing
+  adapted participation data. See the [nflreadr participation reference](https://nflreadr.nflverse.com/reference/load_participation.html).
+
 ### NFL Next Gen Stats (NGS)
 - **Provides:** public **aggregate** passing/rushing/receiving metrics (CPOE, time to
   throw, separation, YAC over expected, etc.).

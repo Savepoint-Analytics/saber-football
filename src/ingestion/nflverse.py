@@ -6,11 +6,16 @@ import argparse
 import json
 from collections.abc import Callable
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any
 
-from src.compliance.attributions import Source
-from src.ingestion._storage import local_path_for_dataset, metadata_for, write_parquet
+from src.compliance.attributions import Source, participation_source
+from src.ingestion._storage import (
+    StoragePath,
+    local_path_for_dataset,
+    metadata_for,
+    write_parquet,
+    write_text,
+)
 from src.schemas.bronze import validate_nfl_pbp_columns, validate_nfl_schedule_columns
 
 SEASONAL_DATASETS: dict[str, str] = {
@@ -104,10 +109,13 @@ def pull_dataset(dataset: str, season: int | None = None) -> Any:
     return frame
 
 
-def _write_dataset(dataset: str, season: int | None, frame: Any) -> Path:
+def _write_dataset(dataset: str, season: int | None, frame: Any) -> StoragePath:
     output_name = DATASET_OUTPUT_NAMES[dataset]
     path = local_path_for_dataset(output_name, league="nfl", season=season)
-    sources = DATASET_SOURCES.get(dataset, [Source.NFLVERSE])
+    if dataset == "participation" and season is not None:
+        sources = [Source.NFLVERSE, participation_source(season)]
+    else:
+        sources = DATASET_SOURCES.get(dataset, [Source.NFLVERSE])
     write_parquet(frame, path, sources=sources)
     metadata = metadata_for(
         dataset=output_name,
@@ -117,25 +125,30 @@ def _write_dataset(dataset: str, season: int | None, frame: Any) -> Path:
         frame=frame,
         path=path,
     )
-    (path.parent / "extract_metadata.json").write_text(
+    metadata_path = (
+        path.rsplit("/", 1)[0] + "/extract_metadata.json"
+        if isinstance(path, str)
+        else path.parent / "extract_metadata.json"
+    )
+    write_text(
+        metadata_path,
         json.dumps(asdict(metadata), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     return path
 
 
-def ingest_dataset(dataset: str, season: int | None = None) -> Path:
+def ingest_dataset(dataset: str, season: int | None = None) -> StoragePath:
     """Pull and snapshot a supported nflverse dataset."""
     frame = pull_dataset(dataset, season)
     return _write_dataset(dataset, season, frame)
 
 
-def ingest_pbp(season: int) -> Path:
+def ingest_pbp(season: int) -> StoragePath:
     """Pull and snapshot one season of nflverse play-by-play."""
     return ingest_dataset("pbp", season)
 
 
-def ingest_schedules(season: int) -> Path:
+def ingest_schedules(season: int) -> StoragePath:
     """Pull and snapshot one season of nflverse schedules."""
     return ingest_dataset("schedules", season)
 

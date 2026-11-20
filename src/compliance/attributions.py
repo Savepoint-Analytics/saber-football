@@ -10,6 +10,8 @@ class Source(StrEnum):
 
     NFLVERSE = "nflverse"
     NFL_NGS = "nfl_ngs"
+    NFL_PARTICIPATION_NGS = "nfl_participation_ngs"
+    NFL_PARTICIPATION_FTN = "nfl_participation_ftn"
     CFBD = "college_football_data"
     BIG_DATA_BOWL = "big_data_bowl"
     PFR = "pro_football_reference"
@@ -24,6 +26,10 @@ class Source(StrEnum):
 ATTRIBUTIONS: dict[Source, str] = {
     Source.NFLVERSE: "Data via nflverse (nflfastR / nflreadr).",
     Source.NFL_NGS: "Includes NFL Next Gen Stats aggregates (via nflverse).",
+    Source.NFL_PARTICIPATION_NGS: (
+        "Participation data via NFL Next Gen Stats and nflverse (CC BY-SA 4.0)."
+    ),
+    Source.NFL_PARTICIPATION_FTN: "Participation data via FTN Data and nflverse (CC BY-SA 4.0).",
     Source.CFBD: "College data via CollegeFootballData.com.",
     Source.BIG_DATA_BOWL: "NFL Big Data Bowl data subject to Kaggle competition rules.",
     Source.PFR: "Stats courtesy of Pro-Football-Reference.com (Sports Reference LLC).",
@@ -42,6 +48,8 @@ RESTRICTED_REDISTRIBUTION: frozenset[Source] = frozenset(
     {
         Source.NFLVERSE,
         Source.NFL_NGS,
+        Source.NFL_PARTICIPATION_NGS,
+        Source.NFL_PARTICIPATION_FTN,
         Source.CFBD,
         Source.BIG_DATA_BOWL,
         Source.PFR,
@@ -55,6 +63,11 @@ RESTRICTED_REDISTRIBUTION: frozenset[Source] = frozenset(
 def attribution_for(source: Source) -> str:
     """Return the attribution string for one source."""
     return ATTRIBUTIONS[source]
+
+
+def participation_source(season: int) -> Source:
+    """Identify the provider of the season's nflverse participation data."""
+    return Source.NFL_PARTICIPATION_FTN if season >= 2023 else Source.NFL_PARTICIPATION_NGS
 
 
 def attribution_block(

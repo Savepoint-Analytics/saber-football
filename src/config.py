@@ -12,11 +12,30 @@ from functools import lru_cache
 from pathlib import Path
 
 
+def _load_dotenv(path: Path | None = None) -> None:
+    """Load repo-local .env values without overriding the process environment."""
+    env_path = path or Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        os.environ.setdefault(key.strip(), value)
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None or raw == "":
         return default
     return int(raw)
+
+
+_load_dotenv()
 
 
 @dataclass(frozen=True)
@@ -30,13 +49,16 @@ class Settings:
     postgres_host: str = os.getenv("POSTGRES_HOST", "localhost")
     postgres_port: int = _env_int("POSTGRES_PORT", 5432)
     postgres_user: str = os.getenv("POSTGRES_USER", "saber")
-    postgres_password: str = os.getenv("POSTGRES_PASSWORD", "change-me")
+    postgres_password: str = (
+        os.getenv("POSTGRES_PASSWORD") or os.getenv("POSTGRES_PWD") or "change-me"
+    )
     postgres_db: str = os.getenv("POSTGRES_DB", "saber_football")
 
     minio_endpoint: str = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
     minio_access_key: str = os.getenv("MINIO_ROOT_USER", "saber")
     minio_secret_key: str = os.getenv("MINIO_ROOT_PASSWORD", "change-me")
     minio_bucket: str = os.getenv("MINIO_BUCKET", "football-sabermetrics")
+    minio_prefix: str = os.getenv("MINIO_PREFIX", "").strip("/")
 
     cfbd_api_key: str = os.getenv("CFBD_API_KEY", "")
 
@@ -61,7 +83,8 @@ class Settings:
     def bronze_root(self) -> str:
         """Root URI for the bronze/raw landing zone."""
         if self.storage_backend == "minio":
-            return f"s3://{self.minio_bucket}"
+            prefix = f"/{self.minio_prefix}" if self.minio_prefix else ""
+            return f"s3://{self.minio_bucket}{prefix}"
         return str((self.data_dir / "bronze").resolve())
 
     @property
