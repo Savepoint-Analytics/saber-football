@@ -5,7 +5,7 @@ SHELL := /bin/bash
 SEASON ?= 2025
 
 .PHONY: help setup sync ingest ingest-pbp ingest-schedules ingest-teams ingest-players \
-        ingest-rosters ingest-participation ingest-snap-counts core analytics reconcile \
+        ingest-rosters ingest-participation ingest-snap-counts core identity analytics reconcile \
         dbt dbt-duckdb test lint fmt typecheck serve clean
 
 help: ## Show this help
@@ -44,6 +44,9 @@ ingest-snap-counts: ## Pull nflverse/PFR snap counts for $(SEASON)
 core: ## Build dim_game, fact_play, and fact_team_game for $(SEASON)
 	uv run python -m src.warehouse.core --season $(SEASON)
 
+identity: ## Build dim_team, dim_player, ID bridge, player-game, and player-on-play tables
+	uv run python -m src.warehouse.identity --season $(SEASON)
+
 analytics: ## Build team efficiency/style analytics for $(SEASON)
 	uv run python -m src.analytics.team_style --season $(SEASON)
 
@@ -68,7 +71,7 @@ fmt: ## Format with ruff
 typecheck: ## Type-check with mypy
 	uv run mypy src
 
-serve: ## Launch the Streamlit dashboard placeholder
+serve: ## Launch the Streamlit team-style dashboard
 	uv run streamlit run src/serving/app.py
 
 clean: ## Remove caches and build artifacts
