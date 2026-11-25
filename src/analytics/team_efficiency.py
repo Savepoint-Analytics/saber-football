@@ -104,7 +104,9 @@ def _fit(design: FloatArray, outcome: FloatArray, weights: FloatArray) -> FloatA
     penalty = np.full(design.shape[1], RIDGE_PLAYS)
     penalty[:2] = [0, VENUE_RIDGE_PLAYS]
     weighted = design.T * weights
-    return np.linalg.solve(weighted @ design + np.diag(penalty), weighted @ outcome)
+    return np.asarray(
+        np.linalg.solve(weighted @ design + np.diag(penalty), weighted @ outcome), dtype=np.float64
+    )
 
 
 def _ratings(coefficients: FloatArray, teams: int) -> FloatArray:
