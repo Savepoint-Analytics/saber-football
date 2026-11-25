@@ -16,6 +16,23 @@ from src.ingestion._storage import write_parquet
 from src.warehouse.core import core_metadata_path, core_output_path
 from src.warehouse.snapshots import Snapshot, read_build_inputs, read_manifest, read_snapshot
 
+# Reviewed against same-game participation and roster or upstream identity evidence.
+# See docs/nfl-data-review.md for the evidence and the intended alias semantics.
+REVIEWED_SNAP_IDS = {
+    "00-0035891": "WhitCo05",
+    "00-0036093": "MurrBi00",
+    "00-0037428": "AndeAl01",
+    "00-0037451": "WillRo08",
+    "00-0038658": "MartAd00",
+    "00-0038920": "ShenJo00",
+    "00-0039176": "OkoyCJ00",
+    "00-0039245": "CoopBu00",
+    "00-0039265": "HallGa01",
+    "00-0039483": "JohnIs03",
+    "00-0040317": "JoneJa16",
+    "00-0040547": "CartNa00",
+}
+
 
 @dataclass(frozen=True)
 class IdentityBuildResult:
@@ -117,10 +134,21 @@ def build_bridge_player_ids(players: pl.DataFrame) -> pl.DataFrame:
             pl.col("esb_id").cast(pl.Utf8),
             pl.col("nfl_id").cast(pl.Utf8),
             pl.col("smart_id").cast(pl.Utf8),
+            pl.col("gsis_id")
+            .replace_strict(REVIEWED_SNAP_IDS, default=None, return_dtype=pl.String)
+            .alias("snap_pfr_alias"),
         )
         .unique(subset=["player_id"])
         .sort("player_id")
     )
+
+
+def snap_id_lookup(bridge: pl.DataFrame) -> pl.DataFrame:
+    """Keep source PFR IDs and add corroborated aliases without duplicate mappings."""
+    ids = bridge.select("player_id", "pfr_id")
+    if "snap_pfr_alias" in bridge.columns:
+        ids = pl.concat([ids, bridge.select("player_id", pl.col("snap_pfr_alias").alias("pfr_id"))])
+    return ids.filter(pl.col("pfr_id").is_not_null() & (pl.col("pfr_id") != "")).unique()
 
 
 def build_fact_player_game(
@@ -130,9 +158,11 @@ def build_fact_player_game(
 
     This is a snap/opportunity proxy table. It is not a player grade.
     """
-    bridge = bridge_player_ids.select("player_id", "pfr_id").filter(pl.col("pfr_id").is_not_null())
+    bridge = snap_id_lookup(bridge_player_ids)
     return (
-        snap_counts.join(bridge, left_on="pfr_player_id", right_on="pfr_id", how="left")
+        snap_counts.join(
+            bridge, left_on="pfr_player_id", right_on="pfr_id", how="left", validate="m:1"
+        )
         .with_columns(
             pl.coalesce([pl.col("player_id"), pl.format("pfr:{}", pl.col("pfr_player_id"))]).alias(
                 "player_id"

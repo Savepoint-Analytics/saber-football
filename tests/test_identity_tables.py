@@ -9,6 +9,7 @@ from src.warehouse.identity import (
     build_dim_team,
     build_fact_player_game,
     build_fact_player_on_play,
+    snap_id_lookup,
 )
 
 
@@ -71,6 +72,21 @@ def test_fact_player_game_uses_gsis_when_pfr_bridge_exists():
     assert row["player_id"] == "00-0000001"
     assert row["active_flag"] is True
     assert row["snaps_offense"] == 60.0
+
+
+def test_snap_lookup_keeps_both_ids_for_a_corroborated_alias():
+    bridge = pl.DataFrame(
+        {
+            "player_id": ["00-0040317", "00-0038658"],
+            "pfr_id": ["JoneJa15", "MartAd00"],
+            "snap_pfr_alias": ["JoneJa16", "MartAd00"],
+        }
+    )
+    assert dict(snap_id_lookup(bridge).select("pfr_id", "player_id").iter_rows()) == {
+        "JoneJa15": "00-0040317",
+        "JoneJa16": "00-0040317",
+        "MartAd00": "00-0038658",
+    }
 
 
 @pytest.mark.parametrize(

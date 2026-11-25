@@ -13,7 +13,7 @@ from src.compliance.attributions import Source, participation_source
 from src.config import settings
 from src.ingestion._storage import write_parquet
 from src.warehouse.core import core_output_path
-from src.warehouse.identity import identity_metadata_path, identity_output_path
+from src.warehouse.identity import identity_metadata_path, identity_output_path, snap_id_lookup
 from src.warehouse.snapshots import read_build_inputs, read_manifest, read_snapshot
 
 TEAM_GAME = ["game_id", "team_id"]
@@ -41,7 +41,7 @@ def audit_snap_ids(
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Classify source rows and attach candidate evidence for unresolved PFR IDs."""
     lookup = (
-        bridge.filter(pl.col("pfr_id").is_not_null() & (pl.col("pfr_id") != ""))
+        snap_id_lookup(bridge)
         .group_by("pfr_id")
         .agg(pl.col("player_id").n_unique().alias("bridge_matches"))
     )
@@ -159,9 +159,7 @@ def build_player_quality(season: int, manifest: Path | None = None) -> dict[str,
         "dim_team": _key_issues(pl.read_parquet(identity_output_path("dim_team")), ["team_id"]),
         "dim_player": _key_issues(players, ["player_id"]),
         "bridge_player_ids": _key_issues(bridge, ["player_id"]),
-        "bridge_pfr_ids": _key_issues(
-            bridge.filter(pl.col("pfr_id").is_not_null() & (pl.col("pfr_id") != "")), ["pfr_id"]
-        ),
+        "bridge_pfr_ids": _key_issues(snap_id_lookup(bridge), ["pfr_id"]),
         "fact_player_game": _key_issues(player_games, PLAYER_GAME),
         "fact_player_on_play": _key_issues(participation, PLAYER_PLAY),
     }

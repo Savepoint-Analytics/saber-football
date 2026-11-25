@@ -31,6 +31,8 @@ class ReconciliationResult:
     max_abs_play_count_diff: int
     notes: str
     raw_inputs: dict[str, Snapshot]
+    cumulative_trace_path: str
+    cumulative_trace_games: int
 
 
 def _raw_analysis_team_game(raw_pbp: pl.DataFrame) -> pl.DataFrame:
@@ -99,6 +101,40 @@ def _public_cumulative_net(raw_pbp: pl.DataFrame) -> pl.DataFrame:
         pl.col("total_away_epa").alias("public_cumulative_net_epa"),
     )
     return pl.concat([home, away], how="vertical")
+
+
+def trace_cumulative_epa(raw_pbp: pl.DataFrame, report: pl.DataFrame) -> pl.DataFrame:
+    """Compare the END GAME and highest-ID rows for material cumulative discrepancies."""
+    home = report.filter(
+        (pl.col("home_away") == "home") & (pl.col("public_cumulative_epa_check_diff").abs() > 0.1)
+    ).select("game_id", "raw_all_row_net_epa", "public_cumulative_epa_check_diff")
+    rows = raw_pbp.join(home.select("game_id"), on="game_id", how="semi").sort("game_id", "play_id")
+    return (
+        rows.group_by("game_id")
+        .agg(
+            pl.col("play_id").last().alias("highest_play_id"),
+            pl.col("total_home_epa").last().alias("highest_id_home_epa"),
+            pl.col("epa").last().alias("highest_id_row_epa"),
+            pl.when(pl.col("timeout") == 1)
+            .then(pl.lit("timeout"))
+            .when(pl.col("desc").str.contains("skycam wire", literal=True))
+            .then(pl.lit("skycam wire stoppage"))
+            .otherwise(pl.col("play_type"))
+            .last()
+            .alias("highest_id_event"),
+            pl.col("play_id").filter(pl.col("desc") == "END GAME").last().alias("end_game_play_id"),
+            pl.col("total_home_epa")
+            .filter(pl.col("desc") == "END GAME")
+            .last()
+            .alias("end_game_home_epa"),
+        )
+        .join(home, on="game_id", how="inner")
+        .with_columns(
+            end_game_epa_gap=pl.col("end_game_home_epa") - pl.col("raw_all_row_net_epa"),
+            highest_id_after_end_game=pl.col("highest_play_id") > pl.col("end_game_play_id"),
+        )
+        .sort("game_id")
+    )
 
 
 def _raw_all_row_net(raw_pbp: pl.DataFrame, dim_game: pl.DataFrame) -> pl.DataFrame:
@@ -231,6 +267,9 @@ def build_and_write_reconciliation(season: int) -> ReconciliationResult:
     path = reconciliation_output_path(season)
     path.parent.mkdir(parents=True, exist_ok=True)
     report.write_parquet(path)
+    trace = trace_cumulative_epa(raw_pbp, report)
+    trace_path = path.with_name("cumulative_epa_trace.parquet")
+    trace.write_parquet(trace_path)
     (path.parent / "NOTICE.txt").write_text(
         attribution_block([Source.NFLVERSE]) + "\n",
         encoding="utf-8",
@@ -264,6 +303,8 @@ def build_and_write_reconciliation(season: int) -> ReconciliationResult:
             "including no-play and penalty bookkeeping rows. These are separate comparisons."
         ),
         raw_inputs={"nflverse_pbp": pbp_input},
+        cumulative_trace_path=str(trace_path),
+        cumulative_trace_games=trace.height,
     )
     metadata_path = (
         settings.data_dir / "quality" / f"season={season}" / "reconciliation_metadata.json"

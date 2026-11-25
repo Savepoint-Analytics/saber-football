@@ -42,6 +42,12 @@ commercial/public posture:
   and NFL Next Gen Stats via nflverse through 2022. Apply the license terms when sharing
   adapted participation data. See the [nflreadr participation reference](https://nflreadr.nflverse.com/reference/load_participation.html).
 
+### Official NFL and club biographies
+- **Use:** Manual identity and name-variant verification against public club rosters, player
+  biographies, and media guides. Link to the issuing club or league in the review notes.
+- **Access / terms:** Public pages and guides subject to the publisher's terms. Verify individual
+  records manually. Retain the ID decision and evidence link for reproducibility.
+
 ### NFL Next Gen Stats (NGS)
 - **Provides:** public **aggregate** passing/rushing/receiving metrics (CPOE, time to
   throw, separation, YAC over expected, etc.).
