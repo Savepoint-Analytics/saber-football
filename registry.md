@@ -61,6 +61,7 @@ to the **data** that code retrieves. Evaluate them separately. Savepoint's postu
 | Transformation | **dbt-core** (`dbt-postgres` / `dbt-duckdb`) | Apache-2.0 | Versioned, tested, documented transforms; medallion modeling. |
 | Orchestration | **Dagster** (or **Prefect**; cron+Make to start) | Apache-2.0 | Asset pipelines with lineage; lightweight for solo ops. |
 | DataFrames | **Polars** + **pandas** + **PyArrow** | MIT / BSD / Apache | Polars for large PBP/participation; Arrow/Parquet interchange. |
+| Linear algebra | **NumPy** | [BSD-3-Clause](https://numpy.org/doc/stable/license.html) | Fit and resample the opponent-adjusted efficiency model. |
 | Modeling | **scikit-learn, XGBoost, LightGBM, statsmodels** | BSD / Apache / MIT | Outcome models, ratings, adjusted plus-minus (ridge/elastic-net). |
 | Bayesian | **PyMC / bambi** | Apache-2.0 | Hierarchical player rates, partial pooling, counterfactuals. |
 | Data validation | **Pandera** (or Great Expectations) | MIT / Apache | Quality gates on ingested tables. |

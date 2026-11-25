@@ -9,6 +9,7 @@ authors = [{ name = "Alex Oswald", email = "alex@savepointanalytics.com" }]
 
 dependencies = [
     "nflreadpy>=0.1.5",
+    "numpy>=1.26",
     "polars>=1.0",
     "pandas>=2.2",
     "pyarrow>=16.0",
