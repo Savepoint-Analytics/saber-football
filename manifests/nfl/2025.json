@@ -1,0 +1,33 @@
+{
+  "raw_inputs": {
+    "nflverse_participation": {
+      "path": "bronze/nflverse_participation/league=nfl/season=2025/pull_date=2026-07-16/nflverse_participation.parquet",
+      "sha256": "e57b9cc8a23eaa06a1d55440c619425b6c4e86235600270d4c52039ae5a10a85"
+    },
+    "nflverse_pbp": {
+      "path": "bronze/nflverse_pbp/league=nfl/season=2025/pull_date=2026-07-08/nflverse_pbp.parquet",
+      "sha256": "9875fa2c85171e661d5ad99aa03dba010e7095ec364743b3e11ff541e60b45e0"
+    },
+    "nflverse_players": {
+      "path": "bronze/nflverse_players/league=nfl/pull_date=2026-07-16/nflverse_players.parquet",
+      "sha256": "b96fd25516366cf0ccd53a1447f63add819f04b4466a1a82c9b7c3836bf28c3b"
+    },
+    "nflverse_rosters": {
+      "path": "bronze/nflverse_rosters/league=nfl/season=2025/pull_date=2026-07-16/nflverse_rosters.parquet",
+      "sha256": "d8a84e61d45e8e275f4b8b59110c3e4d5968915f0c8c0a7bd5b2d3335e43111a"
+    },
+    "nflverse_schedules": {
+      "path": "bronze/nflverse_schedules/league=nfl/season=2025/pull_date=2026-07-08/nflverse_schedules.parquet",
+      "sha256": "56818014e9d3d8f42bbfa5e8f787f1c6c412a4fe3f38b55b3d40a8ee3ce10a91"
+    },
+    "nflverse_snap_counts": {
+      "path": "bronze/nflverse_snap_counts/league=nfl/season=2025/pull_date=2026-07-16/nflverse_snap_counts.parquet",
+      "sha256": "7379993b72ec0c770c5d8de45e4845a46d27493685b7ceee0b34c23dfebf8d6e"
+    },
+    "nflverse_teams": {
+      "path": "bronze/nflverse_teams/league=nfl/pull_date=2026-07-16/nflverse_teams.parquet",
+      "sha256": "1d1d105ff0b0fca8806bfa047c96ef001d150c0bcbba481db5babbafa1f36636"
+    }
+  },
+  "season": 2025
+}

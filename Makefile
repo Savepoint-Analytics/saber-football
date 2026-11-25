@@ -3,9 +3,12 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 SEASON ?= 2025
+MANIFEST ?=
+MANIFEST_ARGS = $(if $(MANIFEST),--manifest "$(MANIFEST)")
 
 .PHONY: help setup sync ingest ingest-pbp ingest-schedules ingest-teams ingest-players \
-        ingest-rosters ingest-participation ingest-snap-counts core identity analytics reconcile \
+        ingest-rosters ingest-participation ingest-snap-counts snapshot-manifest core identity \
+        analytics reconcile player-quality \
         dbt dbt-duckdb test lint fmt typecheck serve clean
 
 help: ## Show this help
@@ -41,17 +44,23 @@ ingest-participation: ## Pull nflverse participation for $(SEASON)
 ingest-snap-counts: ## Pull nflverse/PFR snap counts for $(SEASON)
 	uv run python -m src.ingestion.nflverse snap_counts --season $(SEASON)
 
+snapshot-manifest: ## Record exact local raw snapshot versions for $(SEASON)
+	uv run python -m src.warehouse.snapshots --season $(SEASON) --output "$(or $(MANIFEST),data/quality/season=$(SEASON)/raw_manifest_local.json)"
+
 core: ## Build dim_game, fact_play, and fact_team_game for $(SEASON)
-	uv run python -m src.warehouse.core --season $(SEASON)
+	uv run python -m src.warehouse.core --season $(SEASON) $(MANIFEST_ARGS)
 
 identity: ## Build dim_team, dim_player, ID bridge, player-game, and player-on-play tables
-	uv run python -m src.warehouse.identity --season $(SEASON)
+	uv run python -m src.warehouse.identity --season $(SEASON) $(MANIFEST_ARGS)
 
 analytics: ## Build team efficiency/style analytics for $(SEASON)
 	uv run python -m src.analytics.team_style --season $(SEASON)
 
 reconcile: ## Reconcile core EPA/WPA aggregates against raw nflverse data for $(SEASON)
 	uv run python -m src.quality.reconciliation --season $(SEASON)
+
+player-quality: ## Audit player keys, snap ID matches, and participation coverage
+	uv run python -m src.quality.player_context --season $(SEASON) $(MANIFEST_ARGS)
 
 dbt: ## Build dbt models against Postgres
 	cd dbt && uv run dbt build --target postgres

@@ -13,7 +13,8 @@ import polars as pl
 from src.compliance.attributions import Source, participation_source
 from src.config import settings
 from src.ingestion._storage import write_parquet
-from src.warehouse.core import core_output_path, latest_raw_snapshot
+from src.warehouse.core import core_metadata_path, core_output_path
+from src.warehouse.snapshots import Snapshot, read_build_inputs, read_manifest, read_snapshot
 
 
 @dataclass(frozen=True)
@@ -32,17 +33,11 @@ class IdentityBuildResult:
     fact_player_game_rows: int
     fact_player_on_play_path: str
     fact_player_on_play_rows: int
+    raw_inputs: dict[str, Snapshot]
 
 
-def latest_snapshot(dataset: str, season: int | None = None) -> Path:
-    """Return latest raw snapshot for season-partitioned or snapshot-style datasets."""
-    if season is not None:
-        return latest_raw_snapshot(dataset, season)
-    root = settings.data_dir / "bronze" / dataset / "league=nfl"
-    candidates = sorted(root.glob("pull_date=*/*.parquet"))
-    if not candidates:
-        raise FileNotFoundError(f"no raw {dataset} snapshot found under {root}")
-    return candidates[-1]
+def identity_metadata_path(season: int) -> Path:
+    return settings.data_dir / "core" / f"season={season}" / "identity_build_metadata.json"
 
 
 def _json_struct(columns: list[str]) -> pl.Expr:
@@ -308,12 +303,18 @@ def _write_table(
     return path
 
 
-def build_identity_tables(season: int) -> IdentityBuildResult:
+def build_identity_tables(season: int, manifest: Path | None = None) -> IdentityBuildResult:
     """Build identity and player-context tables from raw nflverse snapshots."""
-    teams = pl.read_parquet(latest_snapshot("nflverse_teams"))
-    players = pl.read_parquet(latest_snapshot("nflverse_players"))
-    snap_counts = pl.read_parquet(latest_snapshot("nflverse_snap_counts", season))
-    participation = pl.read_parquet(latest_snapshot("nflverse_participation", season))
+    pins = read_manifest(manifest, season)
+    core_inputs = read_build_inputs(core_metadata_path(season), season)
+    if pins is not None:
+        for dataset in ("nflverse_schedules", "nflverse_pbp"):
+            if core_inputs is None or core_inputs[dataset].sha256 != pins[dataset].sha256:
+                raise ValueError("core inputs differ from the manifest; rebuild core first")
+    teams, teams_input = read_snapshot("nflverse_teams", None, pins)
+    players, players_input = read_snapshot("nflverse_players", None, pins)
+    snap_counts, snap_input = read_snapshot("nflverse_snap_counts", season, pins)
+    participation, participation_input = read_snapshot("nflverse_participation", season, pins)
     fact_play = pl.read_parquet(core_output_path("fact_play", season))
     dim_game = pl.read_parquet(core_output_path("dim_game", season))
 
@@ -351,8 +352,15 @@ def build_identity_tables(season: int) -> IdentityBuildResult:
         fact_player_game_rows=fact_player_game.height,
         fact_player_on_play_path=str(fact_player_on_play_path),
         fact_player_on_play_rows=fact_player_on_play.height,
+        raw_inputs={
+            **(core_inputs or {}),
+            "nflverse_teams": teams_input,
+            "nflverse_players": players_input,
+            "nflverse_snap_counts": snap_input,
+            "nflverse_participation": participation_input,
+        },
     )
-    metadata_path = settings.data_dir / "core" / f"season={season}" / "identity_build_metadata.json"
+    metadata_path = identity_metadata_path(season)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n")
     return result
@@ -362,8 +370,9 @@ def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint: `python -m src.warehouse.identity --season 2025`."""
     parser = argparse.ArgumentParser(description="Build identity/player-context core tables.")
     parser.add_argument("--season", type=int, required=True)
+    parser.add_argument("--manifest", type=Path)
     args = parser.parse_args(argv)
-    result = build_identity_tables(args.season)
+    result = build_identity_tables(args.season, args.manifest)
     print(json.dumps(asdict(result), indent=2, sort_keys=True))
 
 

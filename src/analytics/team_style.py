@@ -12,7 +12,8 @@ import polars as pl
 
 from src.compliance.attributions import Source, attribution_block
 from src.config import settings
-from src.warehouse.core import core_output_path
+from src.warehouse.core import core_metadata_path, core_output_path
+from src.warehouse.snapshots import Snapshot, read_build_inputs
 
 TEAM_STYLE_SEASON_COLUMNS: tuple[str, ...] = (
     "season",
@@ -42,6 +43,7 @@ class TeamStyleBuildResult:
     built_at_utc: str
     team_style_season_path: str
     team_style_season_rows: int
+    raw_inputs: dict[str, Snapshot]
 
 
 def _weighted_mean(metric: str, weight: str = "plays") -> pl.Expr:
@@ -106,8 +108,11 @@ def build_and_write_team_style(season: int) -> TeamStyleBuildResult:
         built_at_utc=datetime.now(UTC).isoformat(),
         team_style_season_path=str(path),
         team_style_season_rows=team_style.height,
+        raw_inputs=read_build_inputs(core_metadata_path(season), season) or {},
     )
-    metadata_path = settings.data_dir / "analytics" / f"season={season}" / "team_style_metadata.json"
+    metadata_path = (
+        settings.data_dir / "analytics" / f"season={season}" / "team_style_metadata.json"
+    )
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n")
     return result

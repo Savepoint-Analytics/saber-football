@@ -20,6 +20,7 @@ from src.schemas.core import (
     validate_fact_play,
     validate_fact_team_game,
 )
+from src.warehouse.snapshots import Snapshot, read_manifest, read_snapshot
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class CoreBuildResult:
     fact_play_rows: int
     fact_team_game_path: str
     fact_team_game_rows: int
+    raw_inputs: dict[str, Snapshot]
 
 
 def latest_raw_snapshot(dataset: str, season: int) -> Path:
@@ -89,11 +91,12 @@ def build_dim_game(schedules: pl.DataFrame) -> pl.DataFrame:
 
 def build_fact_play(pbp: pl.DataFrame) -> pl.DataFrame:
     """Build core.fact_play from nflverse play-by-play."""
-    turnover = (pl.col("interception").fill_null(0) == 1) | (pl.col("fumble_lost").fill_null(0) == 1)
-    explosive = (
-        ((pl.col("pass").fill_null(0) == 1) & (pl.col("yards_gained").cast(pl.Float64) >= 15))
-        | ((pl.col("rush").fill_null(0) == 1) & (pl.col("yards_gained").cast(pl.Float64) >= 10))
+    turnover = (pl.col("interception").fill_null(0) == 1) | (
+        pl.col("fumble_lost").fill_null(0) == 1
     )
+    explosive = (
+        (pl.col("pass").fill_null(0) == 1) & (pl.col("yards_gained").cast(pl.Float64) >= 15)
+    ) | ((pl.col("rush").fill_null(0) == 1) & (pl.col("yards_gained").cast(pl.Float64) >= 10))
     wp_after = (
         pl.when(pl.col("posteam_type") == "home")
         .then(pl.col("home_wp_post"))
@@ -177,8 +180,16 @@ def build_fact_team_game(dim_game: pl.DataFrame, fact_play: pl.DataFrame) -> pl.
             pl.len().alias("plays"),
             pl.col("epa").filter(non_special).sum().alias("offensive_epa"),
             pl.col("epa").filter(pl.col("special_teams_flag")).sum().alias("special_teams_epa"),
-            pl.col("success_flag").filter(non_special).cast(pl.Float64).mean().alias("success_rate"),
-            pl.col("explosive_flag").filter(non_special).cast(pl.Float64).mean().alias("explosive_rate"),
+            pl.col("success_flag")
+            .filter(non_special)
+            .cast(pl.Float64)
+            .mean()
+            .alias("success_rate"),
+            pl.col("explosive_flag")
+            .filter(non_special)
+            .cast(pl.Float64)
+            .mean()
+            .alias("explosive_rate"),
             pl.col("turnover_flag").cast(pl.Int64).sum().alias("turnovers_committed"),
             pl.col("pass_rate_over_expected").mean().alias("pass_rate_over_expected"),
         )
@@ -231,7 +242,13 @@ def build_fact_team_game(dim_game: pl.DataFrame, fact_play: pl.DataFrame) -> pl.
 
 def core_output_path(table: str, season: int) -> Path:
     """Return the local output path for a core table/season."""
-    return settings.data_dir / "core" / table / "league=nfl" / f"season={season}" / f"{table}.parquet"
+    return (
+        settings.data_dir / "core" / table / "league=nfl" / f"season={season}" / f"{table}.parquet"
+    )
+
+
+def core_metadata_path(season: int) -> Path:
+    return settings.data_dir / "core" / f"season={season}" / "core_build_metadata.json"
 
 
 def _write_core_table(frame: pl.DataFrame, table: str, season: int) -> Path:
@@ -245,10 +262,11 @@ def _write_core_table(frame: pl.DataFrame, table: str, season: int) -> Path:
     return path
 
 
-def build_core_tables(season: int) -> CoreBuildResult:
+def build_core_tables(season: int, manifest: Path | None = None) -> CoreBuildResult:
     """Read raw snapshots, build validated core tables, and write them to data/core."""
-    schedules = pl.read_parquet(latest_raw_snapshot("nflverse_schedules", season))
-    pbp = pl.read_parquet(latest_raw_snapshot("nflverse_pbp", season))
+    pins = read_manifest(manifest, season)
+    schedules, schedules_input = read_snapshot("nflverse_schedules", season, pins)
+    pbp, pbp_input = read_snapshot("nflverse_pbp", season, pins)
 
     dim_game = build_dim_game(schedules)
     fact_play = build_fact_play(pbp)
@@ -267,8 +285,9 @@ def build_core_tables(season: int) -> CoreBuildResult:
         fact_play_rows=fact_play.height,
         fact_team_game_path=str(fact_team_game_path),
         fact_team_game_rows=fact_team_game.height,
+        raw_inputs={"nflverse_schedules": schedules_input, "nflverse_pbp": pbp_input},
     )
-    metadata_path = settings.data_dir / "core" / f"season={season}" / "core_build_metadata.json"
+    metadata_path = core_metadata_path(season)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n")
     return result
@@ -278,8 +297,9 @@ def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint: `python -m src.warehouse.core --season 2025`."""
     parser = argparse.ArgumentParser(description="Build core warehouse tables from raw snapshots.")
     parser.add_argument("--season", type=int, required=True)
+    parser.add_argument("--manifest", type=Path)
     args = parser.parse_args(argv)
-    result = build_core_tables(args.season)
+    result = build_core_tables(args.season, args.manifest)
     print(json.dumps(asdict(result), indent=2, sort_keys=True))
 
 

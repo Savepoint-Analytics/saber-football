@@ -12,7 +12,8 @@ import polars as pl
 
 from src.compliance.attributions import Source, attribution_block
 from src.config import settings
-from src.warehouse.core import core_output_path, latest_raw_snapshot
+from src.warehouse.core import core_metadata_path, core_output_path
+from src.warehouse.snapshots import Snapshot, read_build_inputs, read_snapshot
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class ReconciliationResult:
     max_abs_wpa_diff: float
     max_abs_play_count_diff: int
     notes: str
+    raw_inputs: dict[str, Snapshot]
 
 
 def _raw_analysis_team_game(raw_pbp: pl.DataFrame) -> pl.DataFrame:
@@ -142,9 +144,7 @@ def _raw_all_row_net(raw_pbp: pl.DataFrame, dim_game: pl.DataFrame) -> pl.DataFr
     )
 
 
-def build_epa_wpa_reconciliation(season: int) -> pl.DataFrame:
-    """Build a team-game reconciliation report for EPA/WPA aggregates."""
-    raw_pbp = pl.read_parquet(latest_raw_snapshot("nflverse_pbp", season))
+def _reconcile_with_pbp(season: int, raw_pbp: pl.DataFrame) -> pl.DataFrame:
     dim_game = pl.read_parquet(core_output_path("dim_game", season))
     fact_play = pl.read_parquet(core_output_path("fact_play", season))
     fact_team_game = pl.read_parquet(core_output_path("fact_team_game", season))
@@ -186,8 +186,10 @@ def build_epa_wpa_reconciliation(season: int) -> pl.DataFrame:
                 pl.col("public_cumulative_net_epa").fill_null(0.0)
                 - pl.col("raw_all_row_net_epa").fill_null(0.0)
             ).alias("public_cumulative_epa_check_diff"),
-            (pl.col("core_analysis_wpa").fill_null(0.0) - pl.col("raw_analysis_wpa").fill_null(0.0))
-            .alias("analysis_wpa_diff"),
+            (
+                pl.col("core_analysis_wpa").fill_null(0.0)
+                - pl.col("raw_analysis_wpa").fill_null(0.0)
+            ).alias("analysis_wpa_diff"),
             (
                 pl.col("total_epa").fill_null(0.0)
                 - pl.col("public_cumulative_net_epa").fill_null(0.0)
@@ -197,6 +199,17 @@ def build_epa_wpa_reconciliation(season: int) -> pl.DataFrame:
         .sort(["game_id", "team_id"])
     )
     return report
+
+
+def _read_core_pbp(season: int) -> tuple[pl.DataFrame, Snapshot]:
+    pins = read_build_inputs(core_metadata_path(season), season)
+    return read_snapshot("nflverse_pbp", season, pins)
+
+
+def build_epa_wpa_reconciliation(season: int) -> pl.DataFrame:
+    """Build a team-game reconciliation report for EPA/WPA aggregates."""
+    raw_pbp, _ = _read_core_pbp(season)
+    return _reconcile_with_pbp(season, raw_pbp)
 
 
 def reconciliation_output_path(season: int) -> Path:
@@ -213,7 +226,8 @@ def reconciliation_output_path(season: int) -> Path:
 
 def build_and_write_reconciliation(season: int) -> ReconciliationResult:
     """Write EPA/WPA reconciliation report and metadata summary."""
-    report = build_epa_wpa_reconciliation(season)
+    raw_pbp, pbp_input = _read_core_pbp(season)
+    report = _reconcile_with_pbp(season, raw_pbp)
     path = reconciliation_output_path(season)
     path.parent.mkdir(parents=True, exist_ok=True)
     report.write_parquet(path)
@@ -245,13 +259,15 @@ def build_and_write_reconciliation(season: int) -> ReconciliationResult:
         max_abs_wpa_diff=float(summary["max_abs_wpa_diff"] or 0.0),
         max_abs_play_count_diff=int(summary["max_abs_play_count_diff"] or 0),
         notes=(
-            "Core fact_team_game total_epa reconciles to analysis-play net EPA. "
-            "The public cumulative nflverse total_home_epa/total_away_epa fields reconcile "
-            "to all-row net EPA, including no-play/penalty bookkeeping rows; the gap column "
-            "records that definitional difference."
+            "Core fact_team_game total_epa is checked against analysis-play net EPA. "
+            "Public cumulative nflverse EPA is checked against the sum over all raw rows, "
+            "including no-play and penalty bookkeeping rows. These are separate comparisons."
         ),
+        raw_inputs={"nflverse_pbp": pbp_input},
     )
-    metadata_path = settings.data_dir / "quality" / f"season={season}" / "reconciliation_metadata.json"
+    metadata_path = (
+        settings.data_dir / "quality" / f"season={season}" / "reconciliation_metadata.json"
+    )
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n")
     return result

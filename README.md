@@ -8,13 +8,13 @@ simulate counterfactual coaching with an **AI Coach**. Built as a sub-vertical o
 [Savepoint Analytics](../../COMPANY_CONTEXT.md), extending the
 [baseball flagship](../baseball/README.md) into the NFL and college football.
 
-Last updated: 2026-11-20
+Last updated: 2026-11-21
 
-> **Status** — Phase 1 NFL prototype. The local 2025 build covers 285 games and 32 teams.
+> **Status** — Phase 1 NFL prototype. Rebuilt 2024 and 2025, covering 285 games and 32 teams each.
 > The play-by-play warehouse produces a descriptive team-style mart and Streamlit dashboard,
 > and the player-context build produces team and player dimensions, an ID bridge, snap counts,
-> and on-field participation. Player-context validation and opponent-adjusted efficiency
-> remain Phase 1 priorities. See `PROJECT_CONTEXT.md` §14.
+> and on-field participation. Player-context quality reports are available for both seasons.
+> See `PROJECT_CONTEXT.md` §14.
 
 > **New here? Read in this order:** `../../COMPANY_CONTEXT.md` → `../CLAUDE.md`
 > (sports brief) → `COMPANY_CONTEXT.md` → `PROJECT_CONTEXT.md` → `CLAUDE.md`
@@ -147,7 +147,8 @@ football-sabermetrics/
 ```bash
 # 1. Environment
 uv sync --locked --extra dev --extra serving
-cp .env.example .env            # add CFBD_API_KEY + warehouse credentials
+test -f .env || cp .env.example .env
+export SABER_STORAGE_BACKEND=local
 
 # 2. Local infra (optional early)
 docker compose up -d            # Postgres and MinIO
@@ -167,12 +168,36 @@ make serve
 # 6. Build the initial player-context tables for a completed season
 make ingest-teams ingest-players ingest-rosters ingest-participation ingest-snap-counts SEASON=2025
 make identity SEASON=2025
+make player-quality SEASON=2025
 ```
 
-The commands above use local Parquet. To send future raw extracts and their sidecars to an
-existing MinIO bucket, set `SABER_STORAGE_BACKEND=minio` and configure the endpoint, credentials,
-bucket, and optional `MINIO_PREFIX`. Core, identity, and reconciliation currently require local
-copies of the raw snapshots under `data/bronze/`.
+### Rebuild a completed NFL season from pinned inputs
+
+Use `SABER_STORAGE_BACKEND=local` for local ingestion. Once all seven inputs are present,
+create a manifest and use it for the rebuild.
+
+```bash
+manifest=data/quality/season=2024/raw_manifest_local.json
+make snapshot-manifest SEASON=2024 MANIFEST="$manifest"
+make -j1 core identity analytics reconcile player-quality SEASON=2024 MANIFEST="$manifest"
+```
+
+Save this manifest alongside the retained snapshots. Each entry records a local path relative
+to `SABER_DATA_DIR` or an S3 URI and a SHA-256 checksum. A pinned build stops if the raw bytes
+have changed. The reconciliation reads the PBP pinned by the core build. Run the targets
+in order for a given season.
+
+For MinIO, configure the endpoint, credentials, bucket, and optional `MINIO_PREFIX`.
+Ingest with `SABER_STORAGE_BACKEND=minio` or select a prefix holding previously retained
+snapshots. Create the manifest with
+`uv run python -m src.warehouse.snapshots --season 2024 --from-minio --output /path/to/manifest.json`.
+Pass the manifest to the same build targets. They read the pinned MinIO objects directly and
+write results under the local `SABER_DATA_DIR`.
+
+The player-quality target writes a JSON summary, a team-game coverage Parquet file, and an
+unresolved snap ID review under `data/quality/season=<season>/player_context/`. Participation
+coverage measures analysis-play sides with any recorded players. A separate count records
+sides with exactly 11 players. Roster names and teams surface candidate matches for review.
 
 ## Roadmap (condensed — full version in `docs/09-modeling-roadmap.md`)
 
