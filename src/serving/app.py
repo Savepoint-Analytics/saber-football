@@ -1,4 +1,4 @@
-"""Team efficiency/style dashboard."""
+"""NFL team and player analytics dashboard."""
 
 from __future__ import annotations
 
@@ -36,10 +36,26 @@ def main() -> None:
 
     st.set_page_config(page_title="Savepoint Football Analytics", layout="wide")
     st.title("Savepoint Football Analytics")
-    st.caption("NFL team efficiency and style from nflverse EPA/WPA.")
 
-    season = st.sidebar.number_input("Season", min_value=1999, max_value=2100, value=DEFAULT_SEASON)
-    path = team_style_output_path(int(season))
+    page = st.sidebar.radio(
+        "Dashboard", ["Team style", "Player opportunity", "Team trends"], key="dashboard_page"
+    )
+    season = int(
+        st.sidebar.number_input("Season", min_value=1999, max_value=2100, value=DEFAULT_SEASON)
+    )
+    if page == "Player opportunity":
+        from src.serving.player_view import render_players
+
+        render_players(season)
+        return
+    if page == "Team trends":
+        from src.serving.team_trends import render_team_trends
+
+        render_team_trends(season)
+        return
+
+    st.caption("NFL team efficiency and style from nflverse EPA/WPA.")
+    path = team_style_output_path(season)
     if not Path(path).exists():
         st.warning(
             f"No team-style mart found for {season}. Run `make core analytics SEASON={season}`."
@@ -95,7 +111,7 @@ def main() -> None:
             limitation=pl.lit(LIMITATION),
         )
         .write_csv(),
-        file_name=f"team_style_{int(season)}.csv",
+        file_name=f"team_style_{season}.csv",
         mime="text/csv",
     )
 

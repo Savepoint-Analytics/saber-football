@@ -2,7 +2,7 @@
 
 > **Vertical:** Sports → American Football (NFL primary, NCAA second)
 > **Inherits:** `../../COMPANY_CONTEXT.md` → `../CLAUDE.md` → `COMPANY_CONTEXT.md`
-> **Last updated:** 2026-11-21
+> **Last updated:** 2026-11-25
 
 ---
 
@@ -94,18 +94,20 @@ Build the data foundation once; layer (1) → (7) on top of it. Full detail in
 `fact_play`, and `fact_team_game`. Core EPA/WPA aggregates reconcile with raw nflverse
 analysis plays to floating-point precision in both seasons. The separate check of nflverse
 cumulative EPA against all raw rows observed gaps above 0.1 EPA in three 2024 games, with a
-maximum absolute gap of 6.75 EPA.
-The descriptive Streamlit team-style dashboard supports team and minimum-games filters,
-sorting, and attributed CSV exports.
+maximum absolute gap of 6.75 EPA. All three gaps came from selecting higher-ID administrative
+rows after the `END GAME` marker. The marker value matched signed raw EPA for those games.
+The Streamlit dashboard now includes player-game and player-season opportunity, weekly team
+trends, and regular-season opponent-adjusted efficiency with 90% intervals.
 
 Teams, players, rosters, participation, and snap counts have local snapshots. The identity
 build produces `dim_team`, `dim_player`, `bridge_player_ids`, `fact_player_game`, and
 `fact_player_on_play`, a participation proxy. Both seasons passed structural checks. At
-least one participant was recorded for every analysis-play side. The 2024 snap-count fact
-has 42 rows across six unresolved PFR IDs, and the 2025 fact has 56 rows across eight.
-The audits include roster evidence for review. The 2024 build was replayed directly from
-seven retained MinIO snapshots with matching SHA-256 hashes. Opponent-adjusted efficiency,
-player value, prediction, NCAA ingestion, and simulation remain on the roadmap.
+least one participant was recorded for every analysis-play side. After cross-source review
+and 12 corroborated aliases, all snap rows in both seasons resolve to a player ID. The
+2024 MinIO replay matched all 18 local Parquet outputs. Walk-forward validation showed
+lower matchup EPA/play RMSE with the opponent adjustment in both seasons. Player value,
+game prediction, NCAA ingestion, and simulation remain on the roadmap.
+See [NFL data review](docs/nfl-data-review.md).
 
 ## 7. Domain context
 
@@ -217,12 +219,12 @@ football-sabermetrics/
 - Betting markets include margin/timing — store line source + timestamp; never treat as truth.
 
 ## 14. Current priorities (next, small and concrete)
-1. Build a descriptive player opportunity mart and dashboard with snap shares, on-field play
-   counts, and role groups. Publish coverage and source attribution alongside the metrics.
-2. Review cross-source evidence for the unresolved PFR IDs and document confirmed mappings.
-3. Investigate the 2024 public cumulative EPA gaps before using that field as a benchmark.
-4. Add opponent-adjusted team efficiency and weekly trends before expanding into player value
-   and game prediction.
+1. Use the opportunity marts to build descriptive role and usage profiles. Carry snap-share
+   denominator coverage and participation coverage into player-facing outputs.
+2. Define position- and role-specific baselines and uncertainty for the first player
+   performance models.
+3. Evaluate team strength against held-out seasons and appropriate game-outcome benchmarks
+   before using the ratings for game prediction.
 
 ## 15. Cross-vertical connections
 

@@ -8,12 +8,13 @@ simulate counterfactual coaching with an **AI Coach**. Built as a sub-vertical o
 [Savepoint Analytics](../../COMPANY_CONTEXT.md), extending the
 [baseball flagship](../baseball/README.md) into the NFL and college football.
 
-Last updated: 2026-11-21
+Last updated: 2026-11-25
 
 > **Status** — Phase 1 NFL prototype. Rebuilt 2024 and 2025, covering 285 games and 32 teams each.
 > The play-by-play warehouse produces a descriptive team-style mart and Streamlit dashboard,
 > and the player-context build produces team and player dimensions, an ID bridge, snap counts,
-> and on-field participation. Player-context quality reports are available for both seasons.
+> and on-field participation. The dashboard includes player opportunity, weekly team trends,
+> and regular-season opponent-adjusted efficiency with uncertainty intervals.
 > See `PROJECT_CONTEXT.md` §14.
 
 > **New here? Read in this order:** `../../COMPANY_CONTEXT.md` → `../CLAUDE.md`
@@ -162,13 +163,14 @@ make analytics SEASON=2025
 make reconcile SEASON=2025
 make test
 
-# 5. Explore
-make serve
-
-# 6. Build the initial player-context tables for a completed season
+# 5. Build the player and team views for a completed season
 make ingest-teams ingest-players ingest-rosters ingest-participation ingest-snap-counts SEASON=2025
 make identity SEASON=2025
 make player-quality SEASON=2025
+make opportunity team-trends SEASON=2025
+
+# 6. Explore
+make serve
 ```
 
 ### Rebuild a completed NFL season from pinned inputs
@@ -177,12 +179,13 @@ Use `SABER_STORAGE_BACKEND=local` for local ingestion. Once all seven inputs are
 create a manifest and use it for the rebuild.
 
 ```bash
-manifest=data/quality/season=2024/raw_manifest_local.json
-make snapshot-manifest SEASON=2024 MANIFEST="$manifest"
-make -j1 core identity analytics reconcile player-quality SEASON=2024 MANIFEST="$manifest"
+manifest=manifests/nfl/2024.json
+make -j1 core identity analytics reconcile player-quality opportunity team-trends SEASON=2024 MANIFEST="$manifest"
 ```
 
-Save this manifest alongside the retained snapshots. Each entry records a local path relative
+The checked-in manifests describe the snapshots used to verify 2024 and 2025. For a new
+local pull, use `make snapshot-manifest SEASON=2024 MANIFEST=/path/to/new-manifest.json`
+and retain the resulting manifest alongside its snapshots. Each entry records a path relative
 to `SABER_DATA_DIR` or an S3 URI and a SHA-256 checksum. A pinned build stops if the raw bytes
 have changed. The reconciliation reads the PBP pinned by the core build. Run the targets
 in order for a given season.
@@ -198,6 +201,9 @@ The player-quality target writes a JSON summary, a team-game coverage Parquet fi
 unresolved snap ID review under `data/quality/season=<season>/player_context/`. Participation
 coverage measures analysis-play sides with any recorded players. A separate count records
 sides with exactly 11 players. Roster names and teams surface candidate matches for review.
+
+See the [NFL data review](docs/nfl-data-review.md) for the corroborated ID aliases, the
+2024 cumulative EPA trace, opportunity denominators, and two-season efficiency validation.
 
 ## Roadmap (condensed — full version in `docs/09-modeling-roadmap.md`)
 

@@ -8,7 +8,7 @@ MANIFEST_ARGS = $(if $(MANIFEST),--manifest "$(MANIFEST)")
 
 .PHONY: help setup sync ingest ingest-pbp ingest-schedules ingest-teams ingest-players \
         ingest-rosters ingest-participation ingest-snap-counts snapshot-manifest core identity \
-        analytics reconcile player-quality \
+        analytics reconcile player-quality opportunity team-trends \
         dbt dbt-duckdb test lint fmt typecheck serve clean
 
 help: ## Show this help
@@ -62,6 +62,12 @@ reconcile: ## Reconcile core EPA/WPA aggregates against raw nflverse data for $(
 player-quality: ## Audit player keys, snap ID matches, and participation coverage
 	uv run python -m src.quality.player_context --season $(SEASON) $(MANIFEST_ARGS)
 
+opportunity: ## Build descriptive player-game and player-season opportunity views
+	uv run python -m src.analytics.player_opportunity --season $(SEASON)
+
+team-trends: ## Build weekly team trends, opponent-adjusted ratings, and validation
+	uv run python -m src.analytics.team_efficiency --season $(SEASON)
+
 dbt: ## Build dbt models against Postgres
 	cd dbt && uv run dbt build --target postgres
 
@@ -80,7 +86,7 @@ fmt: ## Format with ruff
 typecheck: ## Type-check with mypy
 	uv run mypy src
 
-serve: ## Launch the Streamlit team-style dashboard
+serve: ## Launch the NFL team and player dashboard
 	uv run streamlit run src/serving/app.py
 
 clean: ## Remove caches and build artifacts
